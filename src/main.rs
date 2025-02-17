@@ -44,3 +44,13 @@ async fn garb4() {
     garb3().await;
     mxg.push("value");
 }
+
+async fn garb5(x: &mut Vec<i32>) {
+    let mut x = x.clone();
+    let _ = tokio::spawn(async move {
+        for i in x.iter_mut() {
+            println!("{:?}", i);
+        }
+    })
+    .await;
+}
