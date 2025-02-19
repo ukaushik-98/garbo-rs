@@ -1,56 +1,66 @@
-use std::{rc::Rc, sync::Mutex, time::Duration};
+use std::{pin::Pin, time::Duration};
+
+struct HttpRequest {}
+struct HttpResponse {}
+struct Error {}
+
+trait Handler {
+    type Future: Future<Output = Result<HttpResponse, Error>>;
+
+    fn call<'a>(&mut self, request: HttpRequest, x: &'a Vec<i32>) -> Self::Future;
+}
+
+struct RequestHandler;
+
+impl Handler for RequestHandler {
+    // We use `Pin<Box<...>>` here for simplicity, but could also define our
+    // own `Future` type to avoid the overhead
+    type Future = Pin<Box<dyn Future<Output = Result<HttpResponse, Error>> + Send>>;
+
+    fn call<'a>(&mut self, _request: HttpRequest, _x: &'a Vec<i32>) -> Self::Future {
+        Box::pin(async move { Ok(HttpResponse {}) })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Timeout<T> {
+    // T will be some type that implements `Handler`
+    inner_handler: T,
+    duration: Duration,
+}
+
+async fn garb<'a>(x: &'a Vec<i32>) -> Result<HttpResponse, Error> {
+    Ok(HttpResponse {})
+}
+
+impl<T> Handler for Timeout<T>
+where
+    T: Handler,
+{
+    type Future = Pin<Box<dyn Future<Output = Result<HttpResponse, Error>> + Send>>;
+
+    fn call<'a>(&mut self, request: HttpRequest, x: &'a Vec<i32>) -> Self::Future {
+        // Box::pin(garb(x))
+        // let mut this = self;
+        // Box::pin(async move {
+        //     let result =
+        //         tokio::time::timeout(this.duration, this.inner_handler.call(request)).await;
+
+        //     match result {
+        //         Ok(Ok(response)) => Ok(response),
+        //         Ok(Err(error)) => Err(error),
+        //         Err(_timeout) => todo!(),
+        //     }
+        // })
+    }
+}
 
 #[tokio::main]
 async fn main() {
-    let _ = garb().await;
-    // garb2().await;
-    garb3().await;
-    // garb4().await;
-    // tokio::spawn(garb2()).await;
-}
-
-async fn garb() {
-    let x = vec!["hello"];
-    let mut rx = Rc::new(x);
-
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    // garb3().await;
-    let test = Rc::get_mut(&mut rx).unwrap();
-    test.push("world");
-    println!("{:?}", test);
-}
-
-async fn garb2() {
-    garb().await;
-}
-
-async fn garb3() {
-    let _ = tokio::spawn(async move {
-        let x = vec!["garbo"];
-        let mx = Mutex::new(x);
-        {
-            let mut mxg = mx.lock().unwrap();
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    })
-    .await;
-}
-
-async fn garb4() {
-    let x = vec!["garbo"];
-    let mx = Mutex::new(x);
-    let mut mxg = mx.lock().unwrap();
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    garb3().await;
-    mxg.push("value");
-}
-
-async fn garb5(x: &mut Vec<i32>) {
-    let mut x = x.clone();
-    let _ = tokio::spawn(async move {
-        for i in x.iter_mut() {
-            println!("{:?}", i);
-        }
-    })
-    .await;
+    let mut timeout = Timeout {
+        inner_handler: RequestHandler {},
+        duration: Duration::from_millis(100),
+    };
+    let x = vec![];
+    let _ = tokio::spawn(timeout.call(HttpRequest {}, &x)).await;
 }
