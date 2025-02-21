@@ -1,5 +1,7 @@
 use pin_project::pin_project;
+use std::marker::PhantomPinned;
 use std::pin::pin;
+use std::sync::Arc;
 use std::time::Duration;
 use std::{
     fmt,
@@ -111,13 +113,61 @@ impl Future for RandGarbo {
     }
 }
 
+trait Service2x<Request> {
+    type Response;
+    type Error;
+    type Future<'a>: Future<Output = Result<Self::Response, Self::Error>>
+    where
+        Self: 'a;
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>>;
+    fn call(&mut self, req: Request) -> Self::Future<'_>;
+}
+
+impl<Request> Service2x<Request> for RandGarbo {
+    type Response = ();
+    type Error = ();
+    type Future<'a>
+        = Pin<Box<dyn Future<Output = Result<(), ()>> + 'a + Send>>
+    where
+        Self: 'a;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        todo!()
+    }
+
+    fn call(&mut self, req: Request) -> Self::Future<'_> {
+        todo!()
+    }
+}
+
+async fn boo<T: 'static>(x: T) {}
+
+async fn fun() {
+    let mut h = RandGarbo;
+    let a = h.call(());
+    boo(a);
+    // tokio::spawn(async move { a });
+}
+
+struct Bax {
+    inner: PhantomPinned,
+}
+
 #[tokio::main]
 async fn main() {
-    let x = foo();
-    let x = pin!(x);
-    let y = async {};
-    let y = pin!(y);
-    bar(x).await;
-    bar(y).await;
+    let test = vec!["hello"];
+    let t2 = &test;
+    let y = async move {
+        let x = foo();
+        x.await;
+        println!("{:?}", &t2);
+    };
+    // let y = pin!(y);
+    // let y = tokio::spawn(y);
+    // bar(x).await;
+    let bax = Bax {
+        inner: PhantomPinned,
+    };
+    bar(bax);
     bar(RandGarbo).await;
 }
